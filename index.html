@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TON Spread Calculator</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .header p {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #999999);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            border-radius: 12px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            color: var(--tg-theme-text-color, #000000);
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: var(--tg-theme-button-color, #0088cc);
+        }
+
+        .calculate-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--tg-theme-button-text-color, #ffffff);
+            background: var(--tg-theme-button-color, #0088cc);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .calculate-btn:hover {
+            opacity: 0.9;
+        }
+
+        .calculate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results {
+            display: none;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .result-item {
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+        }
+
+        .result-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 4px;
+        }
+
+        .result-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .profit-positive {
+            color: #4CAF50;
+        }
+
+        .profit-negative {
+            color: #F44336;
+        }
+
+        .commission-info {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #999999);
+        }
+
+        .commission-info h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .commission-info ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .commission-info li {
+            margin-bottom: 6px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .commission-info li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        /* Step cards */
+        .step-card {
+            background: var(--tg-theme-bg-color, #ffffff);
+            border: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border-radius: 50%;
+            font-weight: 600;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .calculation-details {
+            padding-left: 38px;
+        }
+
+        .calc-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .calc-line.fee {
+            color: var(--tg-theme-hint-color, #999999);
+            font-size: 13px;
+        }
+
+        .calc-line.result {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--tg-theme-hint-color, #e0e0e0);
+            font-weight: 600;
+        }
+
+        .highlight {
+            color: var(--tg-theme-button-color, #0088cc);
+            font-weight: 600;
+        }
+
+        /* Final result card */
+        .final-result-card {
+            background: linear-gradient(135deg,
+                var(--tg-theme-button-color, #0088cc) 0%,
+                var(--tg-theme-button-color, #0066aa) 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .final-result-card h3 {
+            margin-bottom: 16px;
+            font-size: 18px;
+        }
+
+        .final-details {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .final-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .final-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .profit-line,
+        .spread-line {
+            font-size: 16px;
+            font-weight: 600;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Spread visualization */
+        .spread-visualization {
+            margin-top: 16px;
+        }
+
+        .spread-label {
+            font-size: 13px;
+            margin-bottom: 8px;
+            opacity: 0.9;
+        }
+
+        .spread-bar-container {
+            position: relative;
+            height: 32px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .spread-bar {
+            height: 100%;
+            transition: width 0.5s ease, background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 12px;
+            border-radius: 16px;
+        }
+
+        .spread-bar.positive {
+            background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%);
+        }
+
+        .spread-bar.negative {
+            background: linear-gradient(90deg, #F44336 0%, #EF5350 100%);
+        }
+
+        .spread-bar-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 600;
+            font-size: 14px;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Commission details card */
+        .commission-details-card {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .commission-details-card h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .commission-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--tg-theme-text-color, #000000);
+        }
+
+        .commission-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .commission-line.total {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 2px solid var(--tg-theme-hint-color, #e0e0e0);
+            font-size: 15px;
+            color: #F44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 TON Spread Calculator</h1>
+            <p>Калькулятор спреда при покупке TON</p>
+        </div>
+
+        <div class="input-group">
+            <label for="tonPriceRub">Цена покупки TON (RUB):</label>
+            <input type="number" id="tonPriceRub" step="0.01" placeholder="Например: 175" min="0">
+        </div>
+
+        <div class="input-group">
+            <label for="investmentAmount">Сумма инвестиции (RUB):</label>
+            <input type="number" id="investmentAmount" step="0.01" placeholder="Например: 40000" min="0">
+        </div>
+
+        <button class="calculate-btn" id="calculateBtn" onclick="calculateSpread()">
+            Рассчитать спред
+        </button>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="results" id="results">
+            <!-- Шаг 1: Покупка TON -->
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <span class="step-title">Покупка TON</span>
+                </div>
+                <div class="calculation-details">
+                    <div class="calc-line">
+                        <span id="step1-calc"></span>
+                    </div>
+                    <div class="calc-line fee">
+                        <span>Комиссия 0.9%:</span>
+                        <span id="step1-fee"></span>
+                    </div>
+                    <div class="calc-line result">
+                        <span>Итого TON:</span>
+                        <span id="step1-result" class="highlight"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Шаг 2: Перевод на биржу -->
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <span class="step-title">Перевод TON на биржу</span>
+                </div>
+                <div class="calculation-details">
+                    <div class="calc-line">
+                        <span id="step2-calc"></span>
+                    </div>
+                    <div class="calc-line fee">
+                        <span>Комиссия перевода:</span>
+                        <span id="step2-fee">-0.05 TON</span>
+                    </div>
+                    <div class="calc-line result">
+                        <span>Итого TON:</span>
+                        <span id="step2-result" class="highlight"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Шаг 3: Обмен TON → USDT -->
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <span class="step-title">Обмен TON → USDT</span>
+                </div>
+                <div class="calculation-details">
+                    <div class="calc-line">
+                        <span id="step3-calc"></span>
+                    </div>
+                    <div class="calc-line fee">
+                        <span>Комиссия обмена 0.18%:</span>
+                        <span id="step3-fee"></span>
+                    </div>
+                    <div class="calc-line result">
+                        <span>Итого USDT:</span>
+                        <span id="step3-result" class="highlight"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Шаг 4: Прямая покупка USDT на P2P -->
+            <div class="step-card">
+                <div class="step-header">
+                    <span class="step-number">4</span>
+                    <span class="step-title">Прямая покупка USDT (P2P страница 5)</span>
+                </div>
+                <div class="calculation-details">
+                    <div class="calc-line">
+                        <span id="step4-calc"></span>
+                    </div>
+                    <div class="calc-line result">
+                        <span>Итого USDT:</span>
+                        <span id="step4-result" class="highlight"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Итоговый результат -->
+            <div class="final-result-card">
+                <h3>💵 Итоговый результат</h3>
+                <div class="final-details">
+                    <div class="final-line">
+                        <span>Начальная сумма:</span>
+                        <span id="initial-amount"></span>
+                    </div>
+                    <div class="final-line">
+                        <span>Итоговая сумма:</span>
+                        <span id="final-amount"></span>
+                    </div>
+                    <div class="final-line profit-line">
+                        <span>Прибыль:</span>
+                        <span id="profit-amount"></span>
+                    </div>
+                    <div class="final-line spread-line">
+                        <span>Спред:</span>
+                        <span id="spread-percent"></span>
+                    </div>
+                </div>
+                
+                <!-- Визуализация спреда -->
+                <div class="spread-visualization">
+                    <div class="spread-label">Спред:</div>
+                    <div class="spread-bar-container">
+                        <div id="spread-bar" class="spread-bar"></div>
+                        <div id="spread-bar-text" class="spread-bar-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Детализация комиссий -->
+            <div class="commission-details-card">
+                <h3>💸 Детализация комиссий</h3>
+                <div class="commission-line">
+                    <span>Покупка TON (0.9%):</span>
+                    <span id="comm-purchase"></span>
+                </div>
+                <div class="commission-line">
+                    <span>Перевод на биржу (0.05 TON):</span>
+                    <span id="comm-transfer"></span>
+                </div>
+                <div class="commission-line">
+                    <span>Обмен на бирже (0.18%):</span>
+                    <span id="comm-exchange"></span>
+                </div>
+                <div class="commission-line total">
+                    <span><strong>Всего комиссий:</strong></span>
+                    <span id="comm-total"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="commission-info">
+            <h3>📊 Комиссии:</h3>
+            <ul>
+                <li>Покупка TON: -0.9%</li>
+                <li>Перевод на биржу: -0.05 TON</li>
+                <li>Обмен на бирже: -0.18%</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Telegram Web App
+        let tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        // Function to fetch prices from Bybit
+        async function fetchPrices() {
+            try {
+                // Fetch USDT/RUB P2P price and TON/USDT spot price
+                const response = await fetch('/api/prices');
+                const data = await response.json();
+                
+                if (data.success && data.usdtRub && data.tonUsdt) {
+                    console.log('✅ Prices fetched successfully:');
+                    console.log('📊 USDT/RUB P2P:', data.usdtRub, 'RUB');
+                    console.log('📊 TON/USDT Spot:', data.tonUsdt, 'USDT');
+                    console.log('🔄 P2P Success:', data.p2pSuccess);
+                    console.log('🔄 Spot Success:', data.spotSuccess);
+                    return {
+                        usdtRub: parseFloat(data.usdtRub),
+                        tonUsdt: parseFloat(data.tonUsdt),
+                        p2pSuccess: data.p2pSuccess,
+                        spotSuccess: data.spotSuccess
+                    };
+                }
+                
+                throw new Error(data.error || 'Unable to fetch prices');
+            } catch (error) {
+                console.error('❌ Error fetching prices:', error);
+                return null;
+            }
+        }
+
+        async function calculateSpread() {
+            const tonPriceRub = parseFloat(document.getElementById('tonPriceRub').value);
+            const investmentAmount = parseFloat(document.getElementById('investmentAmount').value);
+            const errorMessage = document.getElementById('errorMessage');
+            const calculateBtn = document.getElementById('calculateBtn');
+
+            // Reset error
+            errorMessage.classList.remove('visible');
+            errorMessage.textContent = '';
+
+            // Validation
+            if (isNaN(tonPriceRub) || tonPriceRub <= 0) {
+                errorMessage.textContent = 'Пожалуйста, введите корректную цену покупки TON';
+                errorMessage.classList.add('visible');
+                return;
+            }
+
+            if (isNaN(investmentAmount) || investmentAmount <= 0) {
+                errorMessage.textContent = 'Пожалуйста, введите корректную сумму инвестиции';
+                errorMessage.classList.add('visible');
+                return;
+            }
+
+            // Disable button and show loading
+            calculateBtn.disabled = true;
+            calculateBtn.innerHTML = '<span class="loader"></span>';
+
+            try {
+                // Fetch prices from Bybit
+                const prices = await fetchPrices();
+                
+                if (!prices || !prices.usdtRub || !prices.tonUsdt) {
+                    throw new Error('Не удалось получить курсы валют');
+                }
+
+                const { usdtRub, tonUsdt } = prices;
+
+                // ШАГИ РАСЧЕТА
+                
+                // Шаг 1: Покупка TON с комиссией 0.9%
+                const tonBeforeFee = investmentAmount / tonPriceRub;
+                const tonPurchaseFee = tonBeforeFee * 0.009;
+                const tonAmount = tonBeforeFee - tonPurchaseFee;
+
+                // Шаг 2: Перевод на биржу (-0.05 TON)
+                const tonTransferFee = 0.05;
+                const tonAfterTransfer = tonAmount - tonTransferFee;
+
+                if (tonAfterTransfer <= 0) {
+                    throw new Error('Недостаточно TON после перевода на биржу. Увеличьте сумму инвестиции.');
+                }
+
+                // Шаг 3: Обмен TON → USDT
+                const usdtBeforeFee = tonAfterTransfer * tonUsdt;
+                const usdtExchangeFee = usdtBeforeFee * 0.0018;
+                const usdtAfterFee = usdtBeforeFee - usdtExchangeFee;
+
+                // Шаг 4: Сколько USDT можно было купить напрямую по P2P
+                const usdtDirectPurchase = investmentAmount / usdtRub;
+
+                // Шаг 5: Расчет прибыли и спреда в USDT
+                const profitUsdt = usdtAfterFee - usdtDirectPurchase;
+                const spreadPercent = (profitUsdt / usdtDirectPurchase) * 100;
+
+                // Расчет комиссий
+                const commPurchaseTon = tonPurchaseFee;
+                const commTransferTon = tonTransferFee;
+                const commExchangeUsdt = usdtExchangeFee;
+                const commTotalUsdt = (commPurchaseTon + commTransferTon) * tonUsdt + commExchangeUsdt;
+
+                // ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ
+
+                // Шаг 1
+                document.getElementById('step1-calc').textContent =
+                    `${investmentAmount.toFixed(2)} RUB ÷ ${tonPriceRub.toFixed(2)} RUB/TON = ${tonBeforeFee.toFixed(4)} TON`;
+                document.getElementById('step1-fee').textContent =
+                    `-${tonPurchaseFee.toFixed(4)} TON`;
+                document.getElementById('step1-result').textContent =
+                    `${tonAmount.toFixed(4)} TON`;
+
+                // Шаг 2
+                document.getElementById('step2-calc').textContent =
+                    `${tonAmount.toFixed(4)} TON`;
+                document.getElementById('step2-result').textContent =
+                    `${tonAfterTransfer.toFixed(4)} TON`;
+
+                // Шаг 3
+                document.getElementById('step3-calc').textContent =
+                    `${tonAfterTransfer.toFixed(4)} TON × ${tonUsdt.toFixed(3)} USDT/TON = ${usdtBeforeFee.toFixed(2)} USDT`;
+                document.getElementById('step3-fee').textContent =
+                    `-${usdtExchangeFee.toFixed(4)} USDT`;
+                document.getElementById('step3-result').textContent =
+                    `${usdtAfterFee.toFixed(2)} USDT`;
+
+                // Шаг 4
+                document.getElementById('step4-calc').textContent =
+                    `${investmentAmount.toFixed(2)} RUB ÷ ${usdtRub.toFixed(2)} RUB/USDT`;
+                document.getElementById('step4-result').textContent =
+                    `${usdtDirectPurchase.toFixed(2)} USDT`;
+
+                // Итоговый результат
+                document.getElementById('initial-amount').textContent =
+                    `${usdtDirectPurchase.toFixed(2)} USDT (через P2P)`;
+                document.getElementById('final-amount').textContent =
+                    `${usdtAfterFee.toFixed(2)} USDT (через TON)`;
+                
+                const profitElement = document.getElementById('profit-amount');
+                profitElement.textContent = `${profitUsdt.toFixed(2)} USDT`;
+                profitElement.className = profitUsdt >= 0 ? 'profit-positive' : 'profit-negative';
+                
+                const spreadElement = document.getElementById('spread-percent');
+                spreadElement.textContent = `${spreadPercent.toFixed(2)}%`;
+                spreadElement.className = profitUsdt >= 0 ? 'profit-positive' : 'profit-negative';
+
+                // Визуализация спреда
+                const spreadBar = document.getElementById('spread-bar');
+                const spreadBarText = document.getElementById('spread-bar-text');
+                const absSpreadPercent = Math.abs(spreadPercent);
+                const barWidth = Math.min(absSpreadPercent * 10, 100); // масштаб
+                
+                spreadBar.style.width = barWidth + '%';
+                spreadBar.className = 'spread-bar ' + (profitUsdt >= 0 ? 'positive' : 'negative');
+                spreadBarText.textContent = spreadPercent.toFixed(2) + '%';
+
+                // Детализация комиссий
+                document.getElementById('comm-purchase').textContent =
+                    `-${tonPurchaseFee.toFixed(4)} TON`;
+                document.getElementById('comm-transfer').textContent =
+                    `-${tonTransferFee.toFixed(2)} TON`;
+                document.getElementById('comm-exchange').textContent =
+                    `-${usdtExchangeFee.toFixed(4)} USDT`;
+                document.getElementById('comm-total').textContent =
+                    `-${commTotalUsdt.toFixed(4)} USDT`;
+
+                // Show results
+                document.getElementById('results').classList.add('visible');
+
+                // Notify Telegram
+                if (tg.platform !== 'unknown') {
+                    const emoji = profitUsdt >= 0 ? '✅' : '❌';
+                    tg.showAlert(`${emoji} Расчет завершен!\nПрибыль: ${profitUsdt.toFixed(2)} USDT\nСпред: ${spreadPercent.toFixed(2)}%`);
+                }
+
+            } catch (error) {
+                errorMessage.textContent = 'Ошибка: ' + error.message;
+                errorMessage.classList.add('visible');
+            } finally {
+                // Re-enable button
+                calculateBtn.disabled = false;
+                calculateBtn.textContent = 'Рассчитать спред';
+            }
+        }
+
+        // Allow Enter key to trigger calculation
+        document.getElementById('tonPriceRub').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') calculateSpread();
+        });
+
+        document.getElementById('investmentAmount').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') calculateSpread();
+        });
+    </script>
+</body>
+</html>
