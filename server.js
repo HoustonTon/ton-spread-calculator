@@ -90,50 +90,63 @@ async function fetchBybitUSDTRubP2P() {
     }
 }
 
-// Get TON/USDT spot price from Bybit
+// Get TON/USDT price from CoinGecko (более надежный источник)
 async function getBybitSpotPrice() {
     try {
-        console.log('Fetching TON/USDT spot price...');
+        console.log('Fetching TON/USD price from CoinGecko...');
         
-        const response = await axios.get('https://api.bybit.com/v5/market/tickers', {
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
             params: {
-                category: 'spot',
-                symbol: 'TONUSDT'
+                ids: 'the-open-network',
+                vs_currencies: 'usd'
             },
             headers: {
                 'Accept': 'application/json',
-                'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': 'https://www.bybit.com',
-                'Referer': 'https://www.bybit.com/',
-                'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-                'sec-ch-ua-mobile': '?0',
-                'sec-ch-ua-platform': '"Windows"',
-                'sec-fetch-dest': 'empty',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-site': 'same-site'
+                'User-Agent': 'TON Spread Calculator/1.0'
             },
             timeout: 10000
         });
 
-        console.log('Spot API response status:', response.status);
+        console.log('CoinGecko API response status:', response.status);
 
-        if (response.data && response.data.result && response.data.result.list && response.data.result.list.length > 0) {
-            const ticker = response.data.result.list[0];
-            const price = parseFloat(ticker.lastPrice);
-            console.log('TON/USDT spot price:', price);
+        if (response.data && response.data['the-open-network'] && response.data['the-open-network'].usd) {
+            const price = parseFloat(response.data['the-open-network'].usd);
+            console.log('TON/USDT price from CoinGecko:', price);
             return price;
         }
         
-        console.error('Invalid spot price response structure');
-        throw new Error('Unable to fetch spot price');
+        console.error('Invalid CoinGecko response structure');
+        throw new Error('Unable to fetch price from CoinGecko');
     } catch (error) {
-        console.error('Error fetching TON/USDT spot price:', error.message);
+        console.error('Error fetching TON/USDT price from CoinGecko:', error.message);
         if (error.response) {
             console.error('Response status:', error.response.status);
             console.error('Response data:', error.response.data);
         }
+        
+        // Fallback: Try Bybit as backup
+        try {
+            console.log('Trying Bybit as fallback...');
+            const bybitResponse = await axios.get('https://api.bybit.com/v5/market/tickers', {
+                params: {
+                    category: 'spot',
+                    symbol: 'TONUSDT'
+                },
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 5000
+            });
+            
+            if (bybitResponse.data && bybitResponse.data.result && bybitResponse.data.result.list && bybitResponse.data.result.list.length > 0) {
+                const price = parseFloat(bybitResponse.data.result.list[0].lastPrice);
+                console.log('TON/USDT price from Bybit fallback:', price);
+                return price;
+            }
+        } catch (bybitError) {
+            console.error('Bybit fallback also failed:', bybitError.message);
+        }
+        
         throw error;
     }
 }
