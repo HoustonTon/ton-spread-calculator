@@ -1,15 +1,29 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const cheerio = require('cheerio');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Render обычно использует порты 10000+
 
 // Enable CORS for Telegram Web App
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.static('.'));
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    process.exit(0);
+});
 
 // Function to fetch Bybit P2P USDT/RUB average price from page 5
 async function fetchBybitUSDTRubP2P() {
@@ -299,12 +313,34 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server with error handling
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 TON Spread Calculator server running on port ${PORT}`);
     console.log(`📊 API endpoints:`);
-    console.log(`   - GET /api/ton-price - Get current TON selling price`);
+    console.log(`   - GET /api/prices - Get current prices`);
     console.log(`   - GET /api/health - Health check`);
+    console.log(`🌐 Server accessible at http://localhost:${PORT}`);
+});
+
+// Error handling for server startup
+server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+        console.error(`Port ${PORT} is already in use`);
+    } else {
+        console.error('Server error:', error);
+    }
+    process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
 });
 
 module.exports = app;
