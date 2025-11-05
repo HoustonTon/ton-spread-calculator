@@ -90,98 +90,206 @@ async function fetchBybitUSDTRubP2P() {
     }
 }
 
-// Get TON/USDT price from Binance (надежный публичный API)
+// Get TON/USDT price with hosting-friendly sources (no geo-blocking)
 async function getBybitSpotPrice() {
     try {
-        console.log('Fetching TON/USDT price from Binance...');
+        console.log('Fetching TON/USDT price from hosting-friendly sources...');
         
-        const response = await axios.get('https://api.binance.com/api/v3/ticker/price', {
-            params: {
-                symbol: 'TONUSDT'
-            },
-            headers: {
-                'Accept': 'application/json'
-            },
-            timeout: 10000
-        });
+        // Try KuCoin API (usually allows hosting requests)
+        try {
+            console.log('Trying KuCoin API (primary source)...');
+            const kucoinResponse = await axios.get('https://api.kucoin.com/api/v1/market/orderbook/level1', {
+                params: {
+                    symbol: 'TON-USDT'
+                },
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 8000
+            });
 
-        console.log('Binance API response status:', response.status);
+            if (kucoinResponse.data && kucoinResponse.data.data && kucoinResponse.data.data.price) {
+                const price = parseFloat(kucoinResponse.data.data.price);
+                console.log('TON/USDT price from KuCoin:', price);
+                return price;
+            }
+        } catch (kucoinError) {
+            console.log('KuCoin API failed:', kucoinError.message);
+        }
 
-        if (response.data && response.data.price) {
-            const price = parseFloat(response.data.price);
-            console.log('TON/USDT price from Binance:', price);
-            return price;
+        // Try OKX API
+        try {
+            console.log('Trying OKX API (fallback)...');
+            const okxResponse = await axios.get('https://www.okx.com/api/v5/market/ticker', {
+                params: {
+                    instId: 'TON-USDT'
+                },
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 8000
+            });
+
+            if (okxResponse.data && okxResponse.data.data && okxResponse.data.data.length > 0) {
+                const price = parseFloat(okxResponse.data.data[0].last);
+                console.log('TON/USDT price from OKX:', price);
+                return price;
+            }
+        } catch (okxError) {
+            console.log('OKX API failed:', okxError.message);
+        }
+
+        // Try Gate.io API
+        try {
+            console.log('Trying Gate.io API (additional fallback)...');
+            const gateResponse = await axios.get('https://api.gateio.ws/api/v4/spot/tickers', {
+                params: {
+                    currency_pair: 'TON_USDT'
+                },
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 8000
+            });
+
+            if (gateResponse.data && gateResponse.data.length > 0) {
+                const price = parseFloat(gateResponse.data[0].last);
+                console.log('TON/USDT price from Gate.io:', price);
+                return price;
+            }
+        } catch (gateError) {
+            console.log('Gate.io API failed:', gateError.message);
+        }
+
+        // Try Bitget API
+        try {
+            console.log('Trying Bitget API (final fallback)...');
+            const bitgetResponse = await axios.get('https://api.bitget.com/api/spot/v1/market/ticker', {
+                params: {
+                    symbol: 'TONUSDT'
+                },
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 8000
+            });
+
+            if (bitgetResponse.data && bitgetResponse.data.data && bitgetResponse.data.data.lastPr) {
+                const price = parseFloat(bitgetResponse.data.data.lastPr);
+                console.log('TON/USDT price from Bitget:', price);
+                return price;
+            }
+        } catch (bitgetError) {
+            console.log('Bitget API failed:', bitgetError.message);
         }
         
-        console.error('Invalid Binance response structure');
-        throw new Error('Unable to fetch price from Binance');
+        // If all APIs fail, throw error
+        throw new Error('All hosting-friendly price sources failed (KuCoin, OKX, Gate.io, Bitget)');
+        
     } catch (error) {
-        console.error('Error fetching TON/USDT price from Binance:', error.message);
-        if (error.response) {
-            console.error('Response status:', error.response.status);
-            console.error('Response data:', error.response.data);
-        }
+        console.error('Error fetching TON/USDT price from all sources:', error.message);
         throw error;
     }
 }
 
 // API endpoint to get USDT/RUB P2P price and TON/USDT spot price
 app.get('/api/prices', async (req, res) => {
+    const startTime = Date.now();
+    console.log('🚀 API /api/prices called at', new Date().toISOString());
+    
     try {
-        console.log('API /api/prices called');
-        
         // Get USDT/RUB P2P price
         let usdtRubPrice;
         let p2pSuccess = false;
         let p2pData = null;
+        let p2pSource = 'fallback';
+        
         try {
+            console.log('📊 Fetching USDT/RUB P2P price from Bybit...');
             p2pData = await fetchBybitUSDTRubP2P();
             usdtRubPrice = p2pData.averagePrice;
             p2pSuccess = true;
-            console.log('P2P price fetched successfully:', usdtRubPrice);
+            p2pSource = 'bybit-p2p';
+            console.log('✅ P2P price fetched successfully:', usdtRubPrice, 'RUB/USDT');
         } catch (p2pError) {
-            console.log('USDT/RUB P2P fetch failed, using fallback:', p2pError.message);
+            console.warn('⚠️ USDT/RUB P2P fetch failed:', p2pError.message);
             usdtRubPrice = 100; // Fallback value
+            p2pSource = 'fallback';
         }
 
         // Get TON/USDT spot price
         let tonUsdtPrice;
         let spotSuccess = false;
+        let spotSource = 'fallback';
+        
         try {
+            console.log('📈 Fetching TON/USDT spot price...');
             tonUsdtPrice = await getBybitSpotPrice();
             spotSuccess = true;
-            console.log('Spot price fetched successfully:', tonUsdtPrice);
+            spotSource = 'api-fallback-chain';
+            console.log('✅ Spot price fetched successfully:', tonUsdtPrice, 'USDT');
         } catch (spotError) {
-            console.log('TON/USDT spot fetch failed, using fallback:', spotError.message);
+            console.warn('⚠️ TON/USDT spot fetch failed:', spotError.message);
             tonUsdtPrice = 5.5; // Fallback value
+            spotSource = 'fallback';
         }
 
-        return res.json({
+        const responseTime = Date.now() - startTime;
+        console.log(`⏱️ API response time: ${responseTime}ms`);
+
+        const response = {
             success: true,
             usdtRub: usdtRubPrice,
             tonUsdt: tonUsdtPrice,
             p2pSuccess: p2pSuccess,
             spotSuccess: spotSuccess,
             timestamp: new Date().toISOString(),
+            responseTime: `${responseTime}ms`,
+            sources: {
+                usdtRub: p2pSource,
+                tonUsdt: spotSource
+            },
             details: {
                 usdtRub: p2pData ? {
                     averagePrice: p2pData.averagePrice,
                     priceCount: p2pData.priceCount,
                     minPrice: p2pData.minPrice,
                     maxPrice: p2pData.maxPrice,
-                    pages: p2pData.pages
-                } : null,
+                    pages: p2pData.pages,
+                    source: p2pSource
+                } : {
+                    averagePrice: usdtRubPrice,
+                    source: p2pSource,
+                    note: 'Fallback value used'
+                },
                 tonUsdt: {
-                    lastPrice: tonUsdtPrice
+                    lastPrice: tonUsdtPrice,
+                    source: spotSource,
+                    note: spotSuccess ? 'Real data from API chain' : 'Fallback value used'
                 }
             }
+        };
+
+        console.log('📤 Sending response:', {
+            success: response.success,
+            usdtRub: response.usdtRub,
+            tonUsdt: response.tonUsdt,
+            sources: response.sources
         });
+
+        return res.json(response);
+        
     } catch (error) {
-        console.error('Error in /api/prices:', error);
+        const responseTime = Date.now() - startTime;
+        console.error('❌ Error in /api/prices:', error.message);
+        console.error('📊 Stack trace:', error.stack);
+        
         res.status(500).json({
             success: false,
             error: 'Unable to fetch price data',
-            message: error.message
+            message: error.message,
+            timestamp: new Date().toISOString(),
+            responseTime: `${responseTime}ms`
         });
     }
 });
