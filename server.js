@@ -90,63 +90,37 @@ async function fetchBybitUSDTRubP2P() {
     }
 }
 
-// Get TON/USDT price from CoinGecko (более надежный источник)
+// Get TON/USDT price from Binance (надежный публичный API)
 async function getBybitSpotPrice() {
     try {
-        console.log('Fetching TON/USD price from CoinGecko...');
+        console.log('Fetching TON/USDT price from Binance...');
         
-        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+        const response = await axios.get('https://api.binance.com/api/v3/ticker/price', {
             params: {
-                ids: 'the-open-network',
-                vs_currencies: 'usd'
+                symbol: 'TONUSDT'
             },
             headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'TON Spread Calculator/1.0'
+                'Accept': 'application/json'
             },
             timeout: 10000
         });
 
-        console.log('CoinGecko API response status:', response.status);
+        console.log('Binance API response status:', response.status);
 
-        if (response.data && response.data['the-open-network'] && response.data['the-open-network'].usd) {
-            const price = parseFloat(response.data['the-open-network'].usd);
-            console.log('TON/USDT price from CoinGecko:', price);
+        if (response.data && response.data.price) {
+            const price = parseFloat(response.data.price);
+            console.log('TON/USDT price from Binance:', price);
             return price;
         }
         
-        console.error('Invalid CoinGecko response structure');
-        throw new Error('Unable to fetch price from CoinGecko');
+        console.error('Invalid Binance response structure');
+        throw new Error('Unable to fetch price from Binance');
     } catch (error) {
-        console.error('Error fetching TON/USDT price from CoinGecko:', error.message);
+        console.error('Error fetching TON/USDT price from Binance:', error.message);
         if (error.response) {
             console.error('Response status:', error.response.status);
             console.error('Response data:', error.response.data);
         }
-        
-        // Fallback: Try Bybit as backup
-        try {
-            console.log('Trying Bybit as fallback...');
-            const bybitResponse = await axios.get('https://api.bybit.com/v5/market/tickers', {
-                params: {
-                    category: 'spot',
-                    symbol: 'TONUSDT'
-                },
-                headers: {
-                    'Accept': 'application/json'
-                },
-                timeout: 5000
-            });
-            
-            if (bybitResponse.data && bybitResponse.data.result && bybitResponse.data.result.list && bybitResponse.data.result.list.length > 0) {
-                const price = parseFloat(bybitResponse.data.result.list[0].lastPrice);
-                console.log('TON/USDT price from Bybit fallback:', price);
-                return price;
-            }
-        } catch (bybitError) {
-            console.error('Bybit fallback also failed:', bybitError.message);
-        }
-        
         throw error;
     }
 }
